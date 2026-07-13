@@ -18,7 +18,7 @@ import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest;
 import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type;
 import uk.gov.dwp.uc.pairtest.exception.InvalidPurchaseException;
 
-public class TicketServiceImplTest {
+class TicketServiceImplTest {
 
     private static final Long VALID_ACCOUNT_ID = 1L;
 
@@ -69,6 +69,15 @@ public class TicketServiceImplTest {
 
             verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 80);
             verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 4);
+        }
+
+        @Test
+        void paymentIsMadeBeforeSeatsAreReserved() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 1));
+
+            var inOrder = org.mockito.Mockito.inOrder(ticketPaymentService, seatReservationService);
+            inOrder.verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 25);
+            inOrder.verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1);
         }
     }
 
