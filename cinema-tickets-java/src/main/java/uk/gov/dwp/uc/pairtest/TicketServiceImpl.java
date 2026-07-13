@@ -34,6 +34,7 @@ public class TicketServiceImpl implements TicketService {
     @Override
     public void purchaseTickets(Long accountId, TicketTypeRequest... ticketTypeRequests) throws InvalidPurchaseException {
         Map<Type, Integer> ticketCounts = aggregateTicketCounts(ticketTypeRequests);
+        validatePurchaseRules(ticketCounts);
 
         int totalAmountToPay = calculateTotalAmount(ticketCounts);
         int totalSeatsToAllocate = calculateSeatsToAllocate(ticketCounts);
@@ -51,6 +52,16 @@ public class TicketServiceImpl implements TicketService {
             counts.merge(request.getTicketType(), request.getNoOfTickets(), Integer::sum);
         }
         return counts;
+    }
+
+    private void validatePurchaseRules(Map<Type, Integer> ticketCounts) {
+        int adultCount = ticketCounts.get(Type.ADULT);
+        int childCount = ticketCounts.get(Type.CHILD);
+        int infantCount = ticketCounts.get(Type.INFANT);
+
+        if (adultCount == 0 && (childCount > 0 || infantCount > 0)) {
+            throw new InvalidPurchaseException();
+        }
     }
 
     private int calculateTotalAmount(Map<Type, Integer> ticketCounts) {
