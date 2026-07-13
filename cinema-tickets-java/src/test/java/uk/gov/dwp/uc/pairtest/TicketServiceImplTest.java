@@ -87,4 +87,22 @@ public class TicketServiceImplTest {
             verifyNoInteractions(ticketPaymentService, seatReservationService);
         }
     }
+
+    @Nested
+    class MaximumTicketLimit {
+
+        @Test
+        void moreThan25TicketsAcrossAllTypesIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 26)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void exactly25TicketsIsAllowed() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 25));
+
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 25);
+        }
+    }
 }
