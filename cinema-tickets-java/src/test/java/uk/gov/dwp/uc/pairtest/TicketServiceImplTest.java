@@ -126,4 +126,43 @@ public class TicketServiceImplTest {
             verifyNoInteractions(ticketPaymentService, seatReservationService);
         }
     }
+
+    @Nested
+    class RequestShapeValidation {
+
+        @Test
+        void nullRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, (TicketTypeRequest[]) null));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void emptyRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void nullElementWithinTheRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 1), null));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void negativeTicketCountIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, -1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void requestingZeroTicketsInTotalIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 0)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
 }
