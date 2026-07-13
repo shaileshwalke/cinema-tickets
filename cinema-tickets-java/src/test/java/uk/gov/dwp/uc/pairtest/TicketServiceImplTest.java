@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -103,6 +105,25 @@ public class TicketServiceImplTest {
             ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 25));
 
             verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 25);
+        }
+    }
+
+    @Nested
+    class AccountValidation {
+
+        @Test
+        void nullAccountIdIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(null, new TicketTypeRequest(Type.ADULT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0L, -1L, -100L})
+        void nonPositiveAccountIdIsRejected(long accountId) {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(accountId, new TicketTypeRequest(Type.ADULT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
         }
     }
 }
