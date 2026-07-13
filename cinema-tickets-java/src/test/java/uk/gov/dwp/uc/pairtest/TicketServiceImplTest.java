@@ -165,4 +165,37 @@ public class TicketServiceImplTest {
             verifyNoInteractions(ticketPaymentService, seatReservationService);
         }
     }
+
+    @Nested
+    class InfantAdultRatioAndSideEffects {
+
+        @Test
+        void moreInfantsThanAdultsIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                            new TicketTypeRequest(Type.ADULT, 1),
+                            new TicketTypeRequest(Type.INFANT, 2)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void infantsEqualToAdultsIsAllowed() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                    new TicketTypeRequest(Type.ADULT, 2),
+                    new TicketTypeRequest(Type.INFANT, 2));
+
+            verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 50);
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 2);
+        }
+
+        @Test
+        void rejectedPurchaseNeverCallsEitherThirdPartyService() {
+            try {
+                ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.CHILD, 1));
+            } catch (InvalidPurchaseException expected) {
+                // expected - the assertion is on the mocks below
+            }
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
 }
