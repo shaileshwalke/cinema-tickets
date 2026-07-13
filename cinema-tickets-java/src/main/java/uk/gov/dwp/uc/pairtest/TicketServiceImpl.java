@@ -15,6 +15,8 @@ public class TicketServiceImpl implements TicketService {
      * Should only have private methods other than the one below.
      */
 
+    private static final int MAX_TICKETS_PER_PURCHASE = 25;
+
     private static final Map<Type, Integer> TICKET_PRICES = new EnumMap<>(Type.class);
     static {
         TICKET_PRICES.put(Type.INFANT, 0);
@@ -58,6 +60,11 @@ public class TicketServiceImpl implements TicketService {
         int adultCount = ticketCounts.get(Type.ADULT);
         int childCount = ticketCounts.get(Type.CHILD);
         int infantCount = ticketCounts.get(Type.INFANT);
+        int totalTickets = adultCount + childCount + infantCount;
+
+        if (totalTickets > MAX_TICKETS_PER_PURCHASE) {
+            throw new InvalidPurchaseException();
+        }
 
         if (adultCount == 0 && (childCount > 0 || infantCount > 0)) {
             throw new InvalidPurchaseException();
