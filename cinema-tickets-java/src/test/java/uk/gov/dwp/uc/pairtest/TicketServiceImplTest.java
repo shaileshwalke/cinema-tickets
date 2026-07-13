@@ -2,6 +2,7 @@ package uk.gov.dwp.uc.pairtest;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -66,6 +67,24 @@ public class TicketServiceImplTest {
 
             verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 80);
             verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 4);
+        }
+    }
+
+    @Nested
+    class AdultRequiredForChildOrInfant {
+
+        @Test
+        void childTicketWithoutAnAdultIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.CHILD, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void infantTicketWithoutAnAdultIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.INFANT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
         }
     }
 }
