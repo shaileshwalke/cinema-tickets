@@ -54,11 +54,21 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private Map<Type, Integer> aggregateTicketCounts(TicketTypeRequest[] ticketTypeRequests) {
+        if (ticketTypeRequests == null || ticketTypeRequests.length == 0) {
+            throw new InvalidPurchaseException();
+        }
+
         Map<Type, Integer> counts = new EnumMap<>(Type.class);
         for (Type type : Type.values()) {
             counts.put(type, 0);
         }
         for (TicketTypeRequest request : ticketTypeRequests) {
+            if (request == null) {
+                throw new InvalidPurchaseException();
+            }
+            if (request.getNoOfTickets() < 0) {
+                throw new InvalidPurchaseException();
+            }
             counts.merge(request.getTicketType(), request.getNoOfTickets(), Integer::sum);
         }
         return counts;
@@ -69,6 +79,10 @@ public class TicketServiceImpl implements TicketService {
         int childCount = ticketCounts.get(Type.CHILD);
         int infantCount = ticketCounts.get(Type.INFANT);
         int totalTickets = adultCount + childCount + infantCount;
+
+        if (totalTickets == 0) {
+            throw new InvalidPurchaseException();
+        }
 
         if (totalTickets > MAX_TICKETS_PER_PURCHASE) {
             throw new InvalidPurchaseException();
