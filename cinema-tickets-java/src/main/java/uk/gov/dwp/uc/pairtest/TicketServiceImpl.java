@@ -91,6 +91,13 @@ public class TicketServiceImpl implements TicketService {
         if (adultCount == 0 && (childCount > 0 || infantCount > 0)) {
             throw new InvalidPurchaseException();
         }
+
+        // Assumption "infants will be sitting on an Adult's lap": each infant
+        //needs an adult's lap to sit on, so there can never be more infants than
+        // adults in a single purchase.
+        if (infantCount > adultCount) {
+            throw new InvalidPurchaseException();
+        }
     }
 
     private int calculateTotalAmount(Map<Type, Integer> ticketCounts) {
