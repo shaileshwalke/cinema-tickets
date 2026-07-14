@@ -22,6 +22,7 @@ jobs:
           cache: maven
 
       - name: Build and test
+        working-directory: cinema-tickets-java
         run: mvn -B verify
 
       - name: Publish test results
@@ -29,11 +30,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: target/surefire-reports
+          path: cinema-tickets-java/target/surefire-reports
 
       - name: Publish coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: target/site/jacoco
+          path: cinema-tickets-java/target/site/jacoco
