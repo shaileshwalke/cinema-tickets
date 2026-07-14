@@ -46,13 +46,13 @@ public class TicketServiceImpl implements TicketService {
 
     private void validateAccountId(Long accountId) {
         if (accountId == null || accountId <= 0) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException("Account id must be greater than zero");
         }
     }
 
     private TicketCounts aggregateTicketCounts(TicketTypeRequest[] ticketTypeRequests) {
         if (ticketTypeRequests == null || ticketTypeRequests.length == 0) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException("At least one ticket type request must be provided");
         }
 
         Map<Type, Integer> counts = new EnumMap<>(Type.class);
@@ -61,10 +61,10 @@ public class TicketServiceImpl implements TicketService {
         }
         for (TicketTypeRequest request : ticketTypeRequests) {
             if (request == null) {
-                throw new InvalidPurchaseException();
+                throw new InvalidPurchaseException("Ticket type request must not be null");
             }
             if (request.getNoOfTickets() < 0) {
-                throw new InvalidPurchaseException();
+                throw new InvalidPurchaseException("Number of tickets cannot be negative");
             }
             counts.merge(request.getTicketType(), request.getNoOfTickets(), Integer::sum);
         }
@@ -80,20 +80,22 @@ public class TicketServiceImpl implements TicketService {
 
     private void validateAtLeastOneTicketRequested(TicketCounts ticketCounts) {
         if (ticketCounts.total() == 0) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException("At least one ticket must be purchased");
         }
     }
 
     private void validateMaximumTicketsNotExceeded(TicketCounts ticketCounts) {
         if (ticketCounts.total() > MAX_TICKETS_PER_PURCHASE) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException(
+                    "Cannot purchase more than " + MAX_TICKETS_PER_PURCHASE + " tickets at a time");
         }
     }
 
     private void validateAdultTicketPresentForChildOrInfant(TicketCounts ticketCounts) {
         boolean childOrInfantRequested = ticketCounts.child() > 0 || ticketCounts.infant() > 0;
         if (ticketCounts.adult() == 0 && childOrInfantRequested) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException(
+                    "Child and Infant tickets cannot be purchased without purchasing an Adult ticket");
         }
     }
 
@@ -101,7 +103,8 @@ public class TicketServiceImpl implements TicketService {
         // Assumption "infants will be sitting on an Adult's lap": each infant
         //needs an adult's lap to sit on, so there can never be more infants than
         if (ticketCounts.infant() > ticketCounts.adult()) {
-            throw new InvalidPurchaseException();
+            throw new InvalidPurchaseException(
+                    "Each infant ticket requires an accompanying Adult ticket (infants sit on an adult's lap)");
         }
     }
 
