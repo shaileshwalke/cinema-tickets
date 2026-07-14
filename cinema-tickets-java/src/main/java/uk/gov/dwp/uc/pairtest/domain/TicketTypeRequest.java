@@ -26,8 +26,7 @@ public final class TicketTypeRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TicketTypeRequest)) return false;
-        TicketTypeRequest that = (TicketTypeRequest) o;
+        if (!(o instanceof TicketTypeRequest that)) return false;
         return noOfTickets == that.noOfTickets && type == that.type;
     }
 
