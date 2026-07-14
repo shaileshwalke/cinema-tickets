@@ -37,14 +37,11 @@ public class TicketServiceImpl implements TicketService {
     public void purchaseTickets(Long accountId, TicketTypeRequest... ticketTypeRequests) throws InvalidPurchaseException {
         validateAccountId(accountId);
 
-        Map<Type, Integer> ticketCounts = aggregateTicketCounts(ticketTypeRequests);
+        TicketCounts ticketCounts = aggregateTicketCounts(ticketTypeRequests);
         validatePurchaseRules(ticketCounts);
 
-        int totalAmountToPay = calculateTotalAmount(ticketCounts);
-        int totalSeatsToAllocate = calculateSeatsToAllocate(ticketCounts);
-
-        ticketPaymentService.makePayment(accountId, totalAmountToPay);
-        seatReservationService.reserveSeat(accountId, totalSeatsToAllocate);
+        ticketPaymentService.makePayment(accountId, ticketCounts.totalAmount());
+        seatReservationService.reserveSeat(accountId, ticketCounts.totalSeats());
     }
 
     private void validateAccountId(Long accountId) {
@@ -53,7 +50,7 @@ public class TicketServiceImpl implements TicketService {
         }
     }
 
-    private Map<Type, Integer> aggregateTicketCounts(TicketTypeRequest[] ticketTypeRequests) {
+    private TicketCounts aggregateTicketCounts(TicketTypeRequest[] ticketTypeRequests) {
         if (ticketTypeRequests == null || ticketTypeRequests.length == 0) {
             throw new InvalidPurchaseException();
         }
@@ -71,46 +68,64 @@ public class TicketServiceImpl implements TicketService {
             }
             counts.merge(request.getTicketType(), request.getNoOfTickets(), Integer::sum);
         }
-        return counts;
+        return new TicketCounts(counts.get(Type.ADULT), counts.get(Type.CHILD), counts.get(Type.INFANT));
     }
 
-    private void validatePurchaseRules(Map<Type, Integer> ticketCounts) {
-        int adultCount = ticketCounts.get(Type.ADULT);
-        int childCount = ticketCounts.get(Type.CHILD);
-        int infantCount = ticketCounts.get(Type.INFANT);
-        int totalTickets = adultCount + childCount + infantCount;
+    private void validatePurchaseRules(TicketCounts ticketCounts) {
+        validateAtLeastOneTicketRequested(ticketCounts);
+        validateMaximumTicketsNotExceeded(ticketCounts);
+        validateAdultTicketPresentForChildOrInfant(ticketCounts);
+        validateInfantsDoNotOutnumberAdults(ticketCounts);
+    }
 
-        if (totalTickets == 0) {
+    private void validateAtLeastOneTicketRequested(TicketCounts ticketCounts) {
+        if (ticketCounts.total() == 0) {
             throw new InvalidPurchaseException();
         }
+    }
 
-        if (totalTickets > MAX_TICKETS_PER_PURCHASE) {
+    private void validateMaximumTicketsNotExceeded(TicketCounts ticketCounts) {
+        if (ticketCounts.total() > MAX_TICKETS_PER_PURCHASE) {
             throw new InvalidPurchaseException();
         }
+    }
 
-        if (adultCount == 0 && (childCount > 0 || infantCount > 0)) {
+    private void validateAdultTicketPresentForChildOrInfant(TicketCounts ticketCounts) {
+        boolean childOrInfantRequested = ticketCounts.child() > 0 || ticketCounts.infant() > 0;
+        if (ticketCounts.adult() == 0 && childOrInfantRequested) {
             throw new InvalidPurchaseException();
         }
+    }
 
+    private void validateInfantsDoNotOutnumberAdults(TicketCounts ticketCounts) {
         // Assumption "infants will be sitting on an Adult's lap": each infant
         //needs an adult's lap to sit on, so there can never be more infants than
-        // adults in a single purchase.
-        if (infantCount > adultCount) {
+        if (ticketCounts.infant() > ticketCounts.adult()) {
             throw new InvalidPurchaseException();
         }
     }
 
-    private int calculateTotalAmount(Map<Type, Integer> ticketCounts) {
-        int total = 0;
-        for (Map.Entry<Type, Integer> entry : ticketCounts.entrySet()) {
-            total += TICKET_PRICES.get(entry.getKey()) * entry.getValue();
-        }
-        return total;
-    }
+    /**
+     * Ticket counts per type, plus the price/seat totals derived from them -
+     * avoids passing a raw {@code Map<Type, Integer>} around and repeatedly
+     * calling {@code .get(Type.X)}.
+     */
+    private record TicketCounts(int adult, int child, int infant) {
 
-    private int calculateSeatsToAllocate(Map<Type, Integer> ticketCounts) {
-        // Infants are not allocated a seat - they sit on an adult's lap.
-        return ticketCounts.get(Type.ADULT) + ticketCounts.get(Type.CHILD);
+        int total() {
+            return adult + child + infant;
+        }
+
+        int totalAmount() {
+            return adult * TICKET_PRICES.get(Type.ADULT)
+                    + child * TICKET_PRICES.get(Type.CHILD)
+                    + infant * TICKET_PRICES.get(Type.INFANT);
+        }
+
+        int totalSeats() {
+            // Infants are not allocated a seat - they sit on an adult's lap.
+            return adult + child;
+        }
     }
 
 }
