@@ -17,11 +17,12 @@ public class TicketServiceImpl implements TicketService {
 
     private static final int MAX_TICKETS_PER_PURCHASE = 25;
 
-    private static final Map<Type, Integer> TICKET_PRICES = new EnumMap<>(Type.class);
-    static {
-        TICKET_PRICES.put(Type.INFANT, 0);
-        TICKET_PRICES.put(Type.CHILD, 15);
-        TICKET_PRICES.put(Type.ADULT, 25);
+    private static int priceFor(Type type) {
+        return switch (type) {
+            case INFANT -> 0;
+            case CHILD -> 15;
+            case ADULT -> 25;
+        };
     }
 
     private final TicketPaymentService ticketPaymentService;
@@ -120,9 +121,9 @@ public class TicketServiceImpl implements TicketService {
         }
 
         int totalAmount() {
-            return adult * TICKET_PRICES.get(Type.ADULT)
-                    + child * TICKET_PRICES.get(Type.CHILD)
-                    + infant * TICKET_PRICES.get(Type.INFANT);
+            return adult * priceFor(Type.ADULT)
+                    + child * priceFor(Type.CHILD)
+                    + infant * priceFor(Type.INFANT);
         }
 
         int totalSeats() {
