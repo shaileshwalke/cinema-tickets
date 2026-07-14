@@ -1,0 +1,210 @@
+package uk.gov.dwp.uc.pairtest;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import thirdparty.paymentgateway.TicketPaymentService;
+import thirdparty.seatbooking.SeatReservationService;
+import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest;
+import uk.gov.dwp.uc.pairtest.domain.TicketTypeRequest.Type;
+import uk.gov.dwp.uc.pairtest.exception.InvalidPurchaseException;
+
+class TicketServiceImplTest {
+
+    private static final Long VALID_ACCOUNT_ID = 1L;
+
+    @Mock
+    private TicketPaymentService ticketPaymentService;
+
+    @Mock
+    private SeatReservationService seatReservationService;
+
+    private TicketService ticketService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        ticketService = new TicketServiceImpl(ticketPaymentService, seatReservationService);
+    }
+
+    @Nested
+    class CoreCalculation {
+
+        @Test
+        void adultOnlyPurchase_chargesCorrectAmountAndReservesOneSeat() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 1));
+
+            verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 25);
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1);
+        }
+
+        @Test
+        void mixedOrder_chargesAndReservesCorrectly() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                    new TicketTypeRequest(Type.ADULT, 2),
+                    new TicketTypeRequest(Type.CHILD, 3),
+                    new TicketTypeRequest(Type.INFANT, 1));
+
+            // (2 * £25) + (3 * £15) + (1 * £0) = £95
+            verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 95);
+            // Infants don't get a seat: 2 adults + 3 children = 5 seats
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 5);
+        }
+
+        @Test
+        void repeatedRequestsOfSameType_areAggregated() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                    new TicketTypeRequest(Type.ADULT, 1),
+                    new TicketTypeRequest(Type.ADULT, 1),
+                    new TicketTypeRequest(Type.CHILD, 2));
+
+            verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 80);
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 4);
+        }
+
+        @Test
+        void paymentIsMadeBeforeSeatsAreReserved() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 1));
+
+            var inOrder = org.mockito.Mockito.inOrder(ticketPaymentService, seatReservationService);
+            inOrder.verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 25);
+            inOrder.verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 1);
+        }
+    }
+
+    @Nested
+    class AdultRequiredForChildOrInfant {
+
+        @Test
+        void childTicketWithoutAnAdultIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.CHILD, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void infantTicketWithoutAnAdultIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.INFANT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
+
+    @Nested
+    class MaximumTicketLimit {
+
+        @Test
+        void moreThan25TicketsAcrossAllTypesIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 26)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void exactly25TicketsIsAllowed() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 25));
+
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 25);
+        }
+    }
+
+    @Nested
+    class AccountValidation {
+
+        @Test
+        void nullAccountIdIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(null, new TicketTypeRequest(Type.ADULT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0L, -1L, -100L})
+        void nonPositiveAccountIdIsRejected(long accountId) {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(accountId, new TicketTypeRequest(Type.ADULT, 1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
+
+    @Nested
+    class RequestShapeValidation {
+
+        @Test
+        void nullRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, (TicketTypeRequest[]) null));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void emptyRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void nullElementWithinTheRequestArrayIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 1), null));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void negativeTicketCountIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, -1)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void requestingZeroTicketsInTotalIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.ADULT, 0)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
+
+    @Nested
+    class InfantAdultRatioAndSideEffects {
+
+        @Test
+        void moreInfantsThanAdultsIsRejected() {
+            assertThrows(InvalidPurchaseException.class, () ->
+                    ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                            new TicketTypeRequest(Type.ADULT, 1),
+                            new TicketTypeRequest(Type.INFANT, 2)));
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+
+        @Test
+        void infantsEqualToAdultsIsAllowed() {
+            ticketService.purchaseTickets(VALID_ACCOUNT_ID,
+                    new TicketTypeRequest(Type.ADULT, 2),
+                    new TicketTypeRequest(Type.INFANT, 2));
+
+            verify(ticketPaymentService).makePayment(VALID_ACCOUNT_ID, 50);
+            verify(seatReservationService).reserveSeat(VALID_ACCOUNT_ID, 2);
+        }
+
+        @Test
+        void rejectedPurchaseNeverCallsEitherThirdPartyService() {
+            try {
+                ticketService.purchaseTickets(VALID_ACCOUNT_ID, new TicketTypeRequest(Type.CHILD, 1));
+            } catch (InvalidPurchaseException expected) {
+                // expected - the assertion is on the mocks below
+            }
+            verifyNoInteractions(ticketPaymentService, seatReservationService);
+        }
+    }
+}
